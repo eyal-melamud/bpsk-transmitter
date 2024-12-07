@@ -59,7 +59,7 @@ module BPSK_MODULE #(parameter CLOCK_IN=20_000_000,
         end
     end
 
-    assign data_finish  = (data_counter == (DATA_WIDTH-1)) & (cycle_counter == (CYCLE_COUNT_FULL-1));
+    assign data_finish  = (data_counter == (DATA_WIDTH-1)) & (cycle_counter == (CYCLE_COUNT_FULL-1)) & (clk_counter + 1 == CLK_DIV_COUNT);
     assign wave_out     = carrier_reg ^ faze;
 
 endmodule
