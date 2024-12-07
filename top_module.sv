@@ -10,8 +10,7 @@ module bpsk_top_module (
     input uart_rx,
     output uart_tx,
 	
-	input ctrl_led_in,
-	output ctrl_led_out,
+	output led_uart_rx_valid,
 		
     output bpsk_wave_out,
     output [2:0] led_mode,
@@ -113,6 +112,7 @@ module bpsk_top_module (
         // IDLE state logic, waits for UART command
         //-----------------------------------------------------------------------------------------------------------------------
                 IDLE: begin
+                    uart_sync_in <= 1'b0; 
                     if (uart_read_ready & uart_valid_out) begin
                         case (uart_data_out)
                             8'h4c   :   begin                                   // 8'h4c: ASCII for - L for LOAD
@@ -194,19 +194,18 @@ module bpsk_top_module (
         //-----------------------------------------------------------------------------------------------------------------------
                 FROM_UART : begin
                     if (uart_read_ready & uart_valid_out) begin // read the data
-
-                        if (uart_data_out==8'h53) begin // 8'h53: ASCII for - S for STOP
-                            state               <= (stop_to_send) ? IDLE : FROM_UART;
-                            stop_to_send        <= 1'h1;
-                        end else stop_to_send   <= 1'h0;
-
                         data_to_bpsk_uart_buff  <= uart_data_out;
                         uart_read_ready         <= 1'h0;
                     end
                     if (bpsk_data_finish) begin
-                        data_to_bpsk_uart   <= data_to_bpsk_uart_buff;
-                        uart_sync_in        <= 1'b1;
-                        message_to_send     <= 8'h41; // 0x41 - A (for ACK)
+                        if ((data_to_bpsk_uart == 8'h53) && (data_to_bpsk_uart_buff == 8'h53)) begin
+                            state <=  IDLE;
+                        end
+                        data_to_bpsk_uart       <= data_to_bpsk_uart_buff;
+                        uart_sync_in            <= 1'b1;
+                        message_to_send         <= data_to_bpsk_uart_buff;
+                        // data_to_bpsk_uart_buff  <= 8'b0;
+                        
                     end else begin
                         uart_sync_in        <= 1'b0; 
                     end
@@ -246,21 +245,21 @@ module bpsk_top_module (
 
 
 
-    assign bpsk_wave_out    = sel_bpsk_cycle          	? bpsk_4_wave           : bpsk_2_wave;        // "LOW" - 2 cycle bpsk, "HIGH" - 4 cycle bpsk.
-    assign bpsk_data_finish = sel_bpsk_cycle            ? bpsk_2_data_finish    : bpsk_2_data_finish; // "LOW" - 2 cycle bpsk, "HIGH" - 4 cycle bpsk.
-    assign bpsk_n_rst       = n_rst & ((state == RUN) | (state == FROM_UART));
+    assign bpsk_wave_out        = sel_bpsk_cycle          	? bpsk_4_wave           : bpsk_2_wave;        // "LOW" - 2 cycle bpsk, "HIGH" - 4 cycle bpsk.
+    assign bpsk_data_finish     = sel_bpsk_cycle            ? bpsk_4_data_finish    : bpsk_2_data_finish; // "LOW" - 2 cycle bpsk, "HIGH" - 4 cycle bpsk.
+    assign bpsk_n_rst           = n_rst & ((state == RUN) | (state == FROM_UART));
 
-    assign uart_n_rst       = n_rst & (state != CLEAR);
+    assign uart_n_rst           = n_rst & (state != CLEAR);
 
-    assign memory_data_in   = (state == CLEAR)    		? 0                     : uart_data_out;
+    assign memory_data_in       = (state == CLEAR)    		? 0                     : uart_data_out;
 
-    assign led_mode         = state;
-    
-    assign led_n_rst        = ~n_rst;
-    assign led_sel_bpsk_cycle = ~sel_bpsk_cycle;
+    assign led_mode             = state;
+
+    assign led_n_rst            = ~n_rst;
+    assign led_sel_bpsk_cycle   = ~sel_bpsk_cycle;
 
 
-	assign ctrl_led_out = ctrl_led_in;
+	assign led_uart_rx_valid    = ~(uart_read_ready & uart_valid_out);
 	
 	//assign uart_tx = uart_tx_0 & uart_rx;
 
@@ -291,7 +290,7 @@ module bpsk_top_module (
 
 
     BPSK_MODULE #(.CLOCK_IN               (CLOCK_FRQ),
-                  .CLOCK_CARRIER          (64_00),
+                  .CLOCK_CARRIER          (64_000),
                   .DATA_WIDTH             (8),
                   .CYCLE_COUNT            (2)) 
                 
@@ -304,7 +303,7 @@ module bpsk_top_module (
 
 
     BPSK_MODULE #(.CLOCK_IN               (CLOCK_FRQ),
-                  .CLOCK_CARRIER          (64_00),
+                  .CLOCK_CARRIER          (64_000),
                   .DATA_WIDTH             (8),
                   .CYCLE_COUNT            (4)) 
                 
